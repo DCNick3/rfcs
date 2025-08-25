@@ -6,7 +6,7 @@
 # Summary
 [summary]: #summary
 
-Introduce a new target-specific calling convention `aarch64-indirect-return`, which will pass the first argument as-if it was an indirect result location pointer (that is, through the `x8` register). This would make it possible for Rust to interoperate with C++ functions that return non-trivial C++ objects on `aarch64`.
+Introduce a new target-specific calling convention `aarch64-indirect-return`, which will pass the first argument as if it was an indirect result location pointer (that is, through the `x8` register). This would make it possible for Rust to interoperate with C++ functions that return non-trivial C++ objects on `aarch64`.
 
 # Motivation
 [motivation]: #motivation
@@ -25,7 +25,7 @@ struct NonTrivialObject {
 NonTrivialObject get_object();
 ```
 
-In case such an object is returned from a function, Itanium ABI requires the caller to allocate a location for returned object to be stored in and then pass a pointer to that location to the callee. Most platforms pass this pointer as a hidden argument before all other arguments and before `this`, if any. Therefore it's possible to make an ABI-compatible definition for such a function in Rust:
+In case such an object is returned from a function, Itanium ABI requires the caller to allocate a location for the returned object to be stored in and then pass a pointer to that location to the callee. Most platforms pass this pointer as a hidden argument before all other arguments and before `this`, if any. Therefore, it's possible to make an ABI-compatible definition for such a function in Rust:
 
 ```rust
 unsafe extern "C" {
@@ -33,7 +33,11 @@ unsafe extern "C" {
 }
 ```
 
-`aarch64`, however, uses register `x8` for this, which otherwise does not participate in argument passing. Because of this, it is not possible to call or implement `get_object` on `aarch64` in Rust without writing C++ or assembly shims.
+`aarch64`, however, uses register `x8` for this, which otherwise does not participate in argument passing. Because of this, it is not possible to call or implement `get_object` on `aarch64` in Rust.
+
+It is possible to use either C++ or assembly wrappers conforming to the `extern "C"` calling convention.
+
+C++ shims add a dependency on C++ compiler and complicate the build process. Assembly shims are quite tricky to get right. And both of those approaches are quite unergonomic and become more complex once the user wants to implement such a function or call it through a function pointer.
 
 # Guide-level explanation
 [guide-level-explanation]: #guide-level-explanation
@@ -42,7 +46,7 @@ This ABI is only useful for interfacing with C++ on `aarch64` platform.
 
 When a non-trivial C++ object is being returned from a function, [Itanium ABI mandates](https://itanium-cxx-abi.github.io/cxx-abi/abi.html#non-trivial-return-values) that the caller must pass a pointer for the target object to be constructed at as a hidden parameter before all other parameters or `this`. On top of that, [`aarch64` ABI mandates](https://github.com/ARM-software/abi-aa/blob/main/cppabi64/cppabi64.rst#summary-of-differences-from-and-additions-to-the-generic-c-abi) (see section "GC++ABI §3.1.3 Return Values") that the pointer parameter must be passed using Indirect Result Location Register (x8), which is otherwise unused for parameter passing.
 
-The `extern "aarch64-indirect-return"` calling convention makes the compiler pass the first function parameter as-if it was that hidden result location pointer, causing it to be allocated to the `x8` register. It is otherwise equivalent to `extern "C"` calling convention.
+The `extern "aarch64-indirect-return"` calling convention makes the compiler pass the first function parameter as if it was that hidden result location pointer, causing it to be allocated to the `x8` register. It is otherwise equivalent to `extern "C"` calling convention.
 
 This ABI requires the function to return `()` and for the first argument to be a mutable pointer.
 
@@ -74,7 +78,7 @@ unsafe extern "aarch64-indirect-return" {
 }
 ```
 
-It is also possible to implement a function compatible with the this declaration:
+It is also possible to implement a function compatible with this declaration:
 
 ```rust
 unsafe extern "aarch64-indirect-return" get_object(result_location: *mut NonTrivialObject) {
@@ -109,10 +113,6 @@ Due to limited applicability (C++ FFI without shims on `aarch64`), it is going t
 
 # Rationale and alternatives
 [rationale-and-alternatives]: #rationale-and-alternatives
-
-Main alternative - either assembly or C++ shims.
-
-Assembly shims are hard to get right. C++ shims require a dependency on a C++ compiler and complicate builds.
 
 ## Alternative: marking types as non-trivial
 
