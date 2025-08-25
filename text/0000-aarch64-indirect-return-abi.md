@@ -189,4 +189,4 @@ It also does not allow passing non-trivial objects by-value, instead either requ
 # Future possibilities
 [future-possibilities]: #future-possibilities
 
-This feature is relatively isolated in limited in scope, so it is not expected that this feature will be extended in the future.
+This feature is relatively isolated and limited in scope, so it is not expected that this feature will be extended in the future.
